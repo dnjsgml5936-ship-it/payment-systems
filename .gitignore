@@ -104,10 +104,8 @@ Thumbs.db
 .expo/
 .expo-shared/
 
-# Mobile
-mobile/.expo/
-mobile/dist/
-mobile/web-build/
+# Mobile (Replit 배포 시 제외)
+mobile/
 
 # Database
 *.db
