@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  EMPLOYEE    // 직원
+  REPRESENTATIVE // 대표
+  VICE_REPRESENTATIVE // 부대표
+  ACCOUNTANT  // 경리
+  ADMIN       // 관리자
+}
+
+enum SettlementStatus {
+  DRAFT       // 임시저장
+  PENDING     // 승인대기
+  APPROVED    // 승인완료
+  REJECTED    // 반려
+  PAID        // 송금완료
+}
+
+enum ApprovalStatus {
+  PENDING     // 대기
+  APPROVED    // 승인
+  REJECTED    // 반려
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole
+  password  String?  // Supabase Auth 사용 시 nullable
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  authoredSettlements SettlementRequest[] @relation("SettlementAuthor")
+  approvals           Approval[]         @relation("Approver")
+  processedPayments   Payment[]          @relation("PaymentProcessor")
+
+  @@map("users")
+}
+
+model SettlementRequest {
+  id          String           @id @default(cuid())
+  title       String
+  authorId    String
+  status      SettlementStatus @default(DRAFT)
+  totalAmount Decimal          @db.Decimal(15, 2)
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  author   User            @relation("SettlementAuthor", fields: [authorId], references: [id])
+  items    SettlementItem[]
+  approvals Approval[]
+  payment  Payment?
+
+  @@map("settlement_requests")
+}
+
+model SettlementItem {
+  id          String  @id @default(cuid())
+  requestId   String
+  description String
+  amount      Decimal @db.Decimal(15, 2)
+  remarks     String?
+  attachmentUrl String?
+
+  // Relations
+  request SettlementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("settlement_items")
+}
+
+model Approval {
+  id          String         @id @default(cuid())
+  requestId   String
+  approverId  String
+  status      ApprovalStatus @default(PENDING)
+  comment     String?
+  approvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  request  SettlementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver User              @relation("Approver", fields: [approverId], references: [id])
+
+  @@map("approvals")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  requestId   String   @unique
+  processedBy String
+  bankName    String
+  accountNumber String
+  paymentDate DateTime
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  request     SettlementRequest @relation(fields: [requestId], references: [id])
+  processor   User              @relation("PaymentProcessor", fields: [processedBy], references: [id])
+
+  @@map("payments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // 'approval_request', 'approval_result', 'payment_ready'
+  isRead    Boolean  @default(false)
+  data      Json?    // 추가 데이터 (requestId 등)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
